@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 setup(
     name='bayesian-optimization',
     version='0.6.0',
-    url='https://github.com/fmfn/BayesianOptimization',
+    url='https://github.com/aprams/BayesianOptimization',
     packages=find_packages(),
     author='Fernando Nogueira',
     author_email="fmfnogueira@gmail.com",
