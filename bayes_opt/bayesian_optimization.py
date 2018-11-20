@@ -199,6 +199,100 @@ class BayesianOptimization(Observable):
         self.pbounds.update(new_bounds)
         self.space.set_bounds(new_bounds)
 
+    def create_maximize_generator(self,
+                 init_points=5,
+                 n_iter=25,
+                 acq='ucb',
+                 kappa=2.576,
+                 xi=0.0,
+                 **gp_params):
+        def generator():
+            # Reset timer
+            self.plog.reset_timer()
+
+            # Set acquisition function
+            self.util = UtilityFunction(kind=acq, kappa=kappa, xi=xi)
+
+            # Initialize x, y and find current y_max
+            if not self.initialized:
+                if self.verbose:
+                    self.plog.print_header()
+                self.init(init_points)
+
+            y_max = self.space.Y.max()
+
+            # Set parameters if any was passed
+            self.gp.set_params(**gp_params)
+
+            # Find unique rows of X to avoid GP from breaking
+            self.gp.fit(self.space.X, self.space.Y)
+
+            # Finding argmax of the acquisition function.
+            x_max = acq_max(ac=self.util.utility,
+                            gp=self.gp,
+                            y_max=y_max,
+                            bounds=self.space.bounds,
+                            random_state=self.random_state,
+                            **self._acqkw)
+
+            # Print new header
+            if self.verbose:
+                self.plog.print_header(initialization=False)
+            # Iterative process of searching for the maximum. At each round the
+            # most recent x and y values probed are added to the X and Y arrays
+            # used to train the Gaussian Process. Next the maximum known value
+            # of the target function is found and passed to the acq_max function.
+            # The arg_max of the acquisition function is found and this will be
+            # the next probed value of the target function in the next round.
+            for i in range(n_iter):
+                # Test if x_max is repeated, if it is, draw another one at random
+                # If it is repeated, print a warning
+                pwarning = False
+                while x_max in self.space:
+                    x_max = self.space.random_points(1)[0]
+                    pwarning = True
+
+                # Append most recently generated values to X and Y arrays
+                y = self.space.observe_point(x_max)
+                if self.verbose:
+                    self.plog.print_step(x_max, y, pwarning)
+
+                # Updating the GP.
+                self.gp.fit(self.space.X, self.space.Y)
+
+                # Update the best params seen so far
+                self.res['max'] = self.space.max_point()
+                self.res['all']['values'].append(y)
+                self.res['all']['params'].append(dict(zip(self.space.keys, x_max)))
+
+                # Update maximum value to search for next probe point.
+                if self.space.Y[-1] > y_max:
+                    y_max = self.space.Y[-1]
+
+                # Maximize acquisition function to find next probing point
+                x_max = acq_max(ac=self.util.utility,
+                                gp=self.gp,
+                                y_max=y_max,
+                                bounds=self.space.bounds,
+                                random_state=self.random_state,
+                                **self._acqkw)
+
+                # Keep track of total number of iterations
+                self.i += 1
+
+                # Notify about finished iteration
+                self.dispatch(Events.FIT_STEP_DONE)
+                yield x_max
+
+            # Print a final report if verbose active.
+            if self.verbose:
+                self.plog.print_summary()
+
+            # Notify about finished optimization
+            self.dispatch(Events.FIT_DONE)
+
+        return generator
+
     def maximize(self,
                  init_points=5,
                  n_iter=25,
