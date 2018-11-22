@@ -206,6 +206,7 @@ class BayesianOptimization(Observable):
                  kappa=2.576,
                  xi=0.0,
                  **gp_params):
+
         def generator():
             # Reset timer
             self.plog.reset_timer()
@@ -282,7 +283,7 @@ class BayesianOptimization(Observable):
 
                 # Notify about finished iteration
                 self.dispatch(Events.FIT_STEP_DONE)
-                yield x_max
+                yield x_max, y
 
             # Print a final report if verbose active.
             if self.verbose:
