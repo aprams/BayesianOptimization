@@ -110,7 +110,7 @@ class UtilityFunction(object):
     @staticmethod
     def _ei(x, gp, y_max, xi):
         mean, std = gp.predict(x, return_std=True)
-        z = (mean - y_max - xi)/std
+        z = (mean - y_max - xi)/(std + 1e-5)
         return (mean - y_max - xi) * norm.cdf(z) + std * norm.pdf(z)
 
     @staticmethod
